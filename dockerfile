@@ -7,7 +7,7 @@ FROM ubuntu:22.04
 ARG http_proxy
 ARG https_proxy
 
-COPY third-party-programs.txt /
+# COPY third-party-programs.txt /
 RUN apt-get update && apt-get upgrade -y && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     curl ca-certificates gpg-agent software-properties-common && \
