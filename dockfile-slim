@@ -1,0 +1,60 @@
+# Copyright (c) 2020-2021 Intel Corporation.
+# SPDX-License-Identifier: BSD-3-Clause
+
+FROM ubuntu:22.04
+
+# Set build arguments for proxy
+ARG http_proxy
+ARG https_proxy
+
+RUN apt-get update && apt install curl gpg -y
+
+# repository to install Intel(R) GPU drivers
+RUN curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor | tee /usr/share/keyrings/intel-graphics-archive-keyring.gpg
+RUN echo "deb [signed-by=/usr/share/keyrings/intel-graphics-archive-keyring.gpg arch=amd64] https://repositories.intel.com/gpu/ubuntu jammy unified" > /etc/apt/sources.list.d/intel-graphics.list
+
+RUN apt-get update && apt-get upgrade -y && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    wget intel-opencl-icd \
+    && \
+  rm -rf /var/lib/apt/lists/*
+
+RUN apt-get clean && apt-get autoclean && apt-get autoremove
+
+# Install dependencies and configure the environment
+RUN set -eux && \
+    # Remove breaks install packages
+    #apt-get remove -y libze-dev libze-intel-gpu1 && \
+    #
+    # Install Intel GPU OpenCL Driver and Compute Runtime
+    mkdir -p /tmp/gpu && cd /tmp/gpu && \
+    echo "Downloading Intel Compute Runtime (24.52) for Gen12+..." && \
+    wget https://github.com/intel/intel-graphics-compiler/releases/download/v2.5.6/intel-igc-core-2_2.5.6+18417_amd64.deb && \
+    wget https://github.com/intel/intel-graphics-compiler/releases/download/v2.5.6/intel-igc-opencl-2_2.5.6+18417_amd64.deb && \
+    wget https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/intel-level-zero-gpu_1.6.32224.5_amd64.deb && \
+    wget https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/intel-opencl-icd_24.52.32224.5_amd64.deb && \
+    wget https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/libigdgmm12_22.5.5_amd64.deb && \
+    #
+    echo "Downloading Legacy Compute Runtime (24.35) for pre-Gen12 support..." && \
+    wget https://github.com/intel/compute-runtime/releases/download/24.35.30872.22/intel-level-zero-gpu-legacy1_1.3.30872.22_amd64.deb && \
+    wget https://github.com/intel/compute-runtime/releases/download/24.35.30872.22/intel-opencl-icd-legacy1_24.35.30872.22_amd64.deb && \
+    wget https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17537.20/intel-igc-core_1.0.17537.20_amd64.deb && \
+    wget https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17537.20/intel-igc-opencl_1.0.17537.20_amd64.deb && \
+    #
+    dpkg -i *.deb && rm -rf /tmp/gpu && \
+    #
+    # Install oneAPI Level Zero Loader
+    mkdir /tmp/level-zero && cd /tmp/level-zero && \
+    wget https://github.com/oneapi-src/level-zero/releases/download/v1.20.2/level-zero_1.20.2+u22.04_amd64.deb && \
+    wget https://github.com/oneapi-src/level-zero/releases/download/v1.20.2/level-zero-devel_1.20.2+u22.04_amd64.deb && \
+    dpkg -i *.deb && rm -rf /tmp/level-zero && \
+    #
+    mkdir /llm/ && cd /llm && wget https://github.com/intel/ipex-llm/releases/download/v2.2.0-nightly/ollama-0.5.4-ipex-llm-2.2.0b20250226-ubuntu.tgz \
+    && tar xzvf *.tgz
+# Copy the files to the build image
+#COPY ./start-llama-cpp.sh ./start-ollama.sh ./benchmark_llama-cpp.sh /llm/scripts/
+
+# create local_models to store deepseek-r1:8b
+#RUN mkdir /local_models & cd /local_models & wget https://www.modelscope.cn/models/unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/master/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf
+
+WORKDIR /llm/
